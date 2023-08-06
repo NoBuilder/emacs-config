@@ -1,0 +1,17 @@
+auto-save-list/
+backups/
+custom.el
+eln-cache/
+elpa/
+eshell/
+local.el
+places
+projectile-bookmarks.eld
+projects
+recentf
+request/
+smex-items
+tramp
+transient/
+tree-sitter
+undo/
