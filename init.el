@@ -1,19 +1,14 @@
- (when (fboundp 'scroll-bar-mode)
-  (scroll-bar-mode -1))
+(setq gc-cons-threshold 100000000)
 
-(when (fboundp 'tool-bar-mode)
-  (tool-bar-mode -1))
+(pixel-scroll-precision-mode)
 
-(tooltip-mode  -1)
-(menu-bar-mode -1)
+
+;; Unify all the things.
+(cua-mode +1)
 
 (global-hl-line-mode +1)
 
-(which-function-mode +1)
-
-(use-package spacemacs-theme
-  :config
-  (load-theme 'spacemacs-dark t))
+;(which-function-mode +1)
 
 ;; Don't wait for terminal after opening a client.
 ;; This allows `emacsclient -t` to immedietly open requested file.
@@ -101,6 +96,14 @@
 
 (save-place-mode +1)
 
+(setq org-babel-python-command "python3")
+
+(org-babel-do-load-languages
+ 'org-babel-load-languages
+ '((python . t) ;; replace this with python if you want regular python
+   ;; other languages..
+   ))
+
 ;; Backups et al.
 
 (setq backup-directory-alist
@@ -109,10 +112,47 @@
 (setq auto-save-default nil)
 (setq create-lockfiles nil)
 
+(when (string-equal system-type "darwin")
+  (setq dired-use-ls-dired nil))
+
+(setq recentf-max-saved-items 2048
+      recentf-exclude '("/tmp/"
+                        "/ssh:"
+                        "/sudo:"
+                        "recentf$"
+                        "company-statistics-cache\\.el$"
+                        ;; ctags
+                        "/TAGS$"
+                        ;; global
+                        "/GTAGS$"
+                        "/GRAGS$"
+                        "/GPATH$"
+                        ;; binary
+                        "\\.mkv$"
+                        "\\.mp[34]$"
+                        "\\.avi$"
+                        "\\.pdf$"
+                        "\\.docx?$"
+                        "\\.xlsx?$"
+                        ;; sub-titles
+                        "\\.sub$"
+                        "\\.srt$"
+                        "\\.ass$"
+                        ;; ~/.emacs.d/**/*.el included
+                        ;; "/home/[a-z]\+/\\.[a-df-z]" ; configuration file should not be excluded
+                        ))
+
+
+;; load only if file exists
+(if (file-exists-p (concat user-emacs-directory "local.el"))
+    (load-library (concat user-emacs-directory "local.el")))
+
+
 ;;; Packages
 
 (require 'package)
 
+(package-initialize)
 
 (setq package-native-compile t)
 
@@ -120,25 +160,39 @@
                          ("melpa" . "https://melpa.org/packages/")
 			 ("org"   . "https://orgmode.org/elpa/")))
 
-; Bootstrap `use-package`
-(unless (package-installed-p 'use-package)
-  (package-refresh-contents)
-  (package-install 'use-package))
+(unless package-archive-contents
+  (package-refresh-contents))
+
+;; (unless (package-installed-p 'use-package)
+;;   (package-refresh-contents)
+;;   (package-install 'use-package))
 
 (require 'use-package)
-(require 'use-package-ensure)
+
+;(require 'use-package-ensure)
 (setq use-package-always-ensure t)
+
+
+(use-package spacemacs-theme
+  :config
+  (load-theme 'spacemacs-dark t))
+
 
 (setq show-paren-delay 0)
 (show-paren-mode +1)
 
 (add-hook 'dired-mode-hook 'dired-hide-details-mode)
 
-(use-package diminish)
+(use-package key-chord
+  :init
+  (key-chord-mode +1))
 
-(use-package xclip
+(use-package use-package-chords
   :config
-  (xclip-mode))
+  (key-chord-mode 1))
+
+
+(use-package diminish)
 
 (use-package ripgrep)
 
@@ -146,16 +200,22 @@
   :hook
   ((tide-mode) . smartparens-mode))
 
+;; (use-package helm
+;;   :config
+;;   (setq helm-mode-fuzzy-match t)
+;;   (setq helm-completion-in-region-fuzzy-match t)
 
-(use-package use-package-chords
-  :config
-  (key-chord-mode 1))
+;;   :bind (("C-x C-f" . helm-find-files)
+;;          ("M-x" . helm-M-x)
+;;          ("C-x b" . helm-mini))
+;;   :chords ((";r" . helm-resume)
+;;            (";v" . helm-imenu)))
 
 (use-package ivy
   :diminish
 
   :init
-  (ivy-mode)
+  (ivy-mode +1)
 
   :bind (("C-s" . swiper)
 	 ("C-c C-r" . ivy-resume)
@@ -168,7 +228,11 @@
   :config
   (setq ivy-display-style 'fancy)
   (setq ivy-use-virtual-buffers t)
-  (setq ivy-initial-inputs-alist nil))
+  (setq ivy-initial-inputs-alist nil)
+
+  (add-hook 'eshell-mode-hook
+            (lambda ()
+              (define-key eshell-mode-map (kbd "M-r") 'counsel-esh-history))))
 
 
 (use-package smex
@@ -208,7 +272,7 @@
   :init
   (counsel-projectile-mode +1))
 
-(use-package dap-mode)
+;(use-package dap-mode)
 
 (use-package ein
   :config
@@ -230,8 +294,10 @@
 (use-package flycheck)
 
 (use-package undo-tree
+
   :diminish undo-tree-mode
   :init
+  (setq undo-tree-history-directory-alist '(("." . "~/.emacs.d/undo")))
   (global-undo-tree-mode +1))
 
 
@@ -269,16 +335,6 @@
 	      (when (string-equal "tsx" (file-name-extension buffer-file-name))
 		(soji/setup-tide-mode))))))
 
-;; (use-package cider
-;;   :ensure nil
-;;   :config
-;;   (setq cider-repl-display-help-banner nil)
-;;   (key-chord-define cider-repl-mode-map ",e" 'cider-switch-to-last-clojure-buffer)
-;;   (key-chord-define cider-mode-map ",c" 'cider-switch-to-repl-buffer)
-;;   (key-chord-define cider-mode-map ",r" 'cider-inspect-last-result)
-;;   (key-chord-define cider-mode-map ",e" 'cider-eval-defun-at-point)
-;;   (key-chord-define cider-mode-map ",f" 'cider-read-and-eval-defun-at-point))
-
 (use-package magit
   :bind
   (("C-c g s" . magit-status)
@@ -296,6 +352,44 @@
   (yas-global-mode +1)
   :hook ((clojure-mode emacs-lisp-mode tide-mode web-mode) . yas-minor-mode))
 
+(use-package treesit
+  :ensure nil
+  :preface
+  (defun mp-setup-install-grammars ()
+    "Install Tree-sitter grammars if they are absent."
+    (interactive)
+    (dolist (grammar
+             '((css "https://github.com/tree-sitter/tree-sitter-css")
+               (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
+               (go . ("https://github.com/tree-sitter/tree-sitter-go" "master" "src"))
+               (python "https://github.com/tree-sitter/tree-sitter-python")
+               (tsx . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+               (yaml "https://github.com/ikatyang/tree-sitter-yaml")))
+      (add-to-list 'treesit-language-source-alist grammar)
+      ;; Only install `grammar' if we don't already have it
+      ;; installed. However, if you want to *update* a grammar then
+      ;; this obviously prevents that from happening.
+                                        ;(treesit-install-language-grammar (car grammar))
+      (unless (treesit-language-available-p (car grammar))
+        (treesit-install-language-grammar (car grammar)))))
+
+  ;; Optional, but recommended. Tree-sitter enabled major modes are
+  ;; distinct from their ordinary counterparts.
+  ;;
+  ;; You can remap major modes with `major-mode-remap-alist'. Note
+  ;; that this does *not* extend to hooks! Make sure you migrate them
+  ;; also
+  (dolist (mapping '((python-mode . python-ts-mode)
+                     (css-mode . css-ts-mode)
+                     (typescript-mode . tsx-ts-mode)
+                     (js-mode . js-ts-mode)
+                     (css-mode . css-ts-mode)
+                     (yaml-mode . yaml-ts-mode)))
+    (add-to-list 'major-mode-remap-alist mapping))
+
+  :config
+  (mp-setup-install-grammars))
+
 (use-package restclient)
 
 ;; (use-package god-mode
@@ -309,46 +403,21 @@
 
 ;;   :chords (("fj" . god-mode)))
 
-;; (use-package go-mode
-;;   :ensure nil)
-
-(use-package lsp-mode
-  :commands (lsp lsp-deferred)
-  :config
-  (key-chord-define lsp-mode-map ",r" 'lsp-rename)
-  (key-chord-define lsp-mode-map ",u" 'lsp-find-references)
-  :hook ((go-mode . lsp)
-         (python-mode . lsp)
-         ))
 
 
-(use-package lsp-python-ms
-  :ensure t
-  :init (setq lsp-python-ms-auto-install-server t)
-  :hook (python-mode . (lambda ()
-                          (require 'lsp-python-ms)
-                          (lsp))))
+(use-package eglot
+  :chords ((",r" . eglot-rename)
+           (",u" . eglot-find-references)))
+
+(use-package ace-window
+  :chords ((",," . ace-window))
+  :init
+  (ace-window-display-mode +1))
+
 
 (use-package docker
   :ensure t
   :bind ("C-c d" . docker))
-
-;; (use-package anaconda-mode
-;;   :hook ((python-mode . anaconda-mode)
-;;          (python-mode . anaconda-eldoc-mode)))
-
-;; (use-package tree-sitter
-;;   :config
-;;   (global-tree-sitter-mode)
-;;   (add-hook 'tree-sitter-after-on-hook #'tree-sitter-hl-mode))
-
-;; (use-package tree-sitter-langs
-;;   :requires (tree-sitter))
-
-(use-package lsp-ui
-  :requires (lsp-mode)
-  :commands lsp-ui-mode)
-
 
 (use-package dired
   :ensure nil
@@ -363,24 +432,11 @@
 (use-package org-mode
   :ensure nil
   :hook ((org-mode . auto-revert-mode)
-         (org-mode . org-indent-mode))
-  :config
-  (require 'org-tempo)
-  (org-babel-do-load-languages
-   'org-babel-load-languages
-   '((eshell . t)
-     (shell . t)
-     (python . t))))
+         (org-mode . org-indent-mode)))
 
 (use-package terraform-mode
   :init
   (add-to-list 'auto-mode-alist '("\\.tf\\'" . terraform-mode)))
-
-;; (use-package docker
-;;   :bind ("C-c d" . docker))
-
-;; (use-package ob-async
-;;   :requires (org-mode))
 
 (use-package exec-path-from-shell
   :config
@@ -406,6 +462,57 @@
   :config
   (key-chord-define minibuffer-local-map ";g" 'keyboard-quit))
 
+(use-package editorconfig
+  :ensure t)
+
+(use-package s
+  :ensure t)
+
+(use-package dash
+  :ensure t)
+
+(use-package copilot
+  :load-path "/Users/soji/.emacs.d/pkgs/copilot.el"
+  :config
+  ;;(define-key copilot-mode-map (kbd "C-M-<return>") 'copilot-complete)
+  (define-key copilot-completion-map (kbd "<tab>") 'copilot-accept-completion)
+  (define-key copilot-completion-map (kbd "TAB") 'copilot-accept-completion)
+                                        (add-to-list 'copilot-major-mode-alist '("go-ts" . "go"))
+
+  ;(add-hook 'prog-mode-hook 'copilot-mode)
+                                        )
+
+(use-package zoom
+  :ensure t
+  :config
+  (zoom-mode +1)
+  (custom-set-variables
+   '(zoom-size '(0.618 . 0.618))))
+
+(use-package zoom-window
+  :ensure t
+  :bind (("C-x C-z" . zoom-window-zoom)))
+
+(use-package gptel
+  :init
+  (setq gptel-api-key my-openai-api-key))
+
+(use-package ein)
+
+
+(use-package ob-ipython
+  :ensure t
+  :after org
+  :config
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((ipython . t) ;; replace this with python if you want regular python
+     ;; other languages..
+     )))
+
+(use-package eldoc-box
+  :config
+  (add-hook 'eglot-managed-mode-hook #'eldoc-box-hover-mode t))
 
 
 (defun soji/save-and-kill-buffer ()
@@ -470,20 +577,25 @@
   (kill-new
    (file-name-nondirectory buffer-file-name)))
 
-(defun soji/clip-file-name ()
-  (interactive)
-  (kill-new
-   (buffer-file-name)))
 
-(defun soji/clip ()
-  "Copies kill ring to system clipboard"
+(defun soji/copy-path ()
+  "Copy the file or directory of the current buffer."
   (interactive)
-  (if (display-graphic-p)
-      (call-interactively 'clipboard-kill-ring-save)
-    (if (region-active-p)
-        (progn
-          (shell-command-on-region (region-beginning) (region-end) "wl-copy")
-          (deactivate-mark)))))
+  (let ((path (or (buffer-file-name) default-directory)))
+    (kill-new path)
+    (message "Copied path '%s' to the clipboard" path)))
+
+(global-set-key (kbd "C-c C-c p") 'soji/copy-path)
+
+;; (defun soji/clip ()
+;;   "Copies kill ring to system clipboard"
+;;   (interactive)
+;;   (if (display-graphic-p)
+;;       (call-interactively 'clipboard-kill-ring-save)
+;;     (if (region-active-p)
+;;         (progn
+;;           (shell-command-on-region (region-beginning) (region-end) "wl-copy")
+;;           (deactivate-mark)))))
 
 (defun soji/setup-tide-mode ()
   (interactive)
